@@ -1,26 +1,22 @@
 # ---------- Build Stage ----------
-FROM eclipse-temurin:21-jdk AS build
+FROM maven:3.9.9-eclipse-temurin-21 AS build
 WORKDIR /app
 
-# Copy Maven wrapper and pom.xml first (better cache)
-COPY mvnw pom.xml ./
-COPY .mvn .mvn
+# Copy pom.xml and download dependencies (cached in Docker layer)
+COPY pom.xml .
+RUN mvn dependency:go-offline
 
-# Download dependencies (cached in Docker layers)
-RUN ./mvnw dependency:go-offline
-
-# Now copy source and build
-COPY src src
-RUN ./mvnw clean package -DskipTests
+# Now copy the source and build the jar
+COPY src ./src
+RUN mvn clean package -DskipTests
 
 # ---------- Run Stage ----------
 FROM eclipse-temurin:21-jre AS runtime
 WORKDIR /app
 
-# Copy the fat jar from the build stage
+# Adjust the jar name if needed (check your target/ folder)
 COPY --from=build /app/target/urlShortener-0.0.1-SNAPSHOT.jar app.jar
 
 EXPOSE 8080
 
-# Spring profile will come from env var on Render (SPRING_PROFILES_ACTIVE=prod)
 ENTRYPOINT ["java", "-jar", "app.jar"]
